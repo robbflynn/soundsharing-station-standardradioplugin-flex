@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 implements="soundshare.sdk.plugins.view.IPluginView" 
+		 xmlns:components="soundshare.plugins.station.remoteplaylist.views.components.*"
+		 resize="onResize(event)"
+		 initialize="init()">
+	
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.core.FlexGlobals;
+			import mx.events.ResizeEvent;
+			import mx.managers.PopUpManager;
+			
+			import soundshare.station.data.StationContext;
+			import soundshare.plugins.station.standardradio.managers.configuration.StandardRadioPluginConfigurationManager;
+			import soundshare.plugins.station.standardradio.views.configuration.panels.SelectPlaylistPanel;
+			import soundshare.sdk.data.platlists.PlaylistContext;
+			import soundshare.sdk.plugins.manager.IPluginManager;
+			import soundshare.sdk.plugins.view.events.PluginViewEvent;
+			
+			import spark.components.Application;
+			
+			import utils.collection.CollectionUtil;
+			
+			[Bindable] private var selectedPlaylists:ArrayCollection = new ArrayCollection();
+			
+			[Bindable] public var context:StationContext;
+			
+			private var pluginManager:StandardRadioPluginConfigurationManager;
+			
+			private var selectPlaylistPanel:SelectPlaylistPanel;
+			
+			protected function init():void
+			{
+				selectPlaylistPanel = new SelectPlaylistPanel();
+				selectPlaylistPanel.addEventListener(Event.SELECT, onSelectPlaylist);
+				selectPlaylistPanel.init(context);
+			}
+			
+			public function show():void
+			{
+				PopUpManager.addPopUp(this, FlexGlobals.topLevelApplication as Application, true);
+				PopUpManager.centerPopUp(this);
+				
+				trace("1.show:", context.selectedChannel.plugin);
+				
+				if (context.selectedChannel.plugin && context.selectedChannel.plugin.pluginId == pluginManager.pluginData._id)
+				{
+					//selectedPlaylists.source = context.selectedChannel.plugin.configuration;
+					
+					trace("2.show:", context.selectedChannel.plugin.pluginId, context.selectedChannel.plugin.configuration);
+					
+					selectedPlaylists.removeAll();
+					
+					var playlistContext:PlaylistContext;
+					var pl:Array = context.selectedChannel.plugin.configuration.playlists as Array;
+					
+					if (pl)
+						for (var i:int = 0;i < pl.length;i ++)
+						{
+							playlistContext = CollectionUtil.getItemFromCollection("_id", pl[i], context.playlists) as PlaylistContext;
+							
+							if (playlistContext)
+								selectedPlaylists.addItem(playlistContext);
+						}
+					
+					trace("3.show:", selectedPlaylists.length);
+					
+					selectedPlaylists.refresh();
+				}
+				
+				
+				pluginManager.prepare(selectedPlaylists.source);
+				dispatchEvent(new PluginViewEvent(PluginViewEvent.SHOWN));
+			}
+			
+			public function hide():void
+			{
+				pluginManager.destroy();
+				
+				PopUpManager.removePopUp(this);
+				dispatchEvent(new PluginViewEvent(PluginViewEvent.HIDDEN));
+			}
+			
+			protected function onResize(event:ResizeEvent):void
+			{
+				PopUpManager.centerPopUp(this);
+			}
+			
+			private function save():void
+			{
+				pluginManager.save();
+				hide();
+			}
+			
+			//**************************************************************************************************************
+			//										Broadcast settings functions
+			//**************************************************************************************************************
+			
+			protected function selectPlaylist():void
+			{
+				selectPlaylistPanel.show();
+			}
+			
+			private function onSelectPlaylist(e:Event):void
+			{
+				selectedPlaylists.addItem(selectPlaylistPanel.playlistData);
+			}
+			
+			protected function removePlaylist():void
+			{
+				var index:int = selectedPlaylists.getItemIndex(playlistsGrid.selectedItem);
+				
+				selectedPlaylists.removeItemAt(index);
+				selectedPlaylists.refresh();
+			}
+			
+			protected function moveUp():void
+			{
+				if (playlistsGrid.selectedIndex != 0)
+				{
+					var item:PlaylistContext = playlistsGrid.selectedItem as PlaylistContext;
+					var index:int = selectedPlaylists.getItemIndex(item);
+					
+					selectedPlaylists.removeItemAt(index);
+					selectedPlaylists.addItemAt(item, index - 1);
+					selectedPlaylists.refresh();
+					
+					playlistsGrid.selectedItem = item;
+				}
+			}
+			
+			protected function moveDown():void
+			{
+				if (playlistsGrid.selectedIndex != selectedPlaylists.length - 1)
+				{
+					var item:PlaylistContext = playlistsGrid.selectedItem as PlaylistContext;
+					var index:int = selectedPlaylists.getItemIndex(item);
+					
+					selectedPlaylists.removeItemAt(index);
+					selectedPlaylists.addItemAt(item, index + 1);
+					selectedPlaylists.refresh();
+					
+					playlistsGrid.selectedItem = item;
+				}
+			}
+			
+			private function totalLabelFunc(item:Object, column:DataGridColumn):String 
+			{
+				return item.total;
+			}
+			
+			private function genreLabelFunc(item:Object, column:DataGridColumn):String 
+			{
+				return item.genre ? String(item.genre).split(",").join(", ") : "";
+			}
+			
+			public function set manager(value:IPluginManager):void
+			{
+				pluginManager = value as StandardRadioPluginConfigurationManager;
+				context = pluginManager.context as StationContext;
+			}
+			
+			public function get manager():IPluginManager
+			{
+				return pluginManager;
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:Panel title="Configuration">
+		<s:VGroup paddingBottom="15" paddingLeft="15" paddingTop="20" paddingRight="15">
+			
+			<s:VGroup>
+				
+				<s:Label text="Playlists:" paddingTop="10"/>
+				
+				<mx:DataGrid id="playlistsGrid" dataProvider="{selectedPlaylists}" width="450" 
+							 rowCount="6">
+					<mx:columns>
+						<mx:DataGridColumn dataField="name" headerText="Name"  />
+						<mx:DataGridColumn labelFunction="genreLabelFunc" headerText="Genre"  />
+						<mx:DataGridColumn labelFunction="totalLabelFunc" headerText="Total" textAlign="center" width="80"/>
+					</mx:columns>
+				</mx:DataGrid>
+				
+				<s:HGroup>
+					<s:Button label="Add playlist" click="selectPlaylist()" />
+					<s:Button label="Delete playlist" click="removePlaylist()" enabled="{playlistsGrid.selectedItem}" />
+					<s:Button label="Move up" click="moveUp()" 
+							  enabled="{playlistsGrid.selectedItem &amp;&amp; playlistsGrid.selectedIndex != 0 &amp;&amp; selectedPlaylists.length &gt; 1}" />
+					<s:Button label="Move down" click="moveDown()" 
+							  enabled="{playlistsGrid.selectedItem &amp;&amp; playlistsGrid.selectedIndex != selectedPlaylists.length - 1 &amp;&amp; selectedPlaylists.length &gt; 1}" />
+				</s:HGroup>
+				
+			</s:VGroup>
+			
+			<s:HGroup paddingTop="10">
+				<s:Button label="OK" click="save()" />
+				<s:Button label="Cancel" click="hide()" />
+			</s:HGroup>
+			
+		</s:VGroup>
+	</s:Panel>
+	
+</s:Group>

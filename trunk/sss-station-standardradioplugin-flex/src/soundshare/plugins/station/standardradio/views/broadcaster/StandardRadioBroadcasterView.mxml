@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Panel xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 implements="soundshare.sdk.plugins.view.IPluginView" 
+		 xmlns:components="soundshare.plugins.station.remoteplaylist.views.components.*"
+		 title="Standard Radio Broadcaster"
+		 resize="onResize(event)" xmlns:components1="soundshare.plugins.station.standardradio.views.components.*">
+	
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.core.FlexGlobals;
+			import mx.events.ResizeEvent;
+			import mx.managers.CursorManager;
+			import mx.managers.PopUpManager;
+			
+			import soundshare.station.data.StationContext;
+			import soundshare.plugins.station.standardradio.managers.broadcaster.StandardRadioPluginBroadcasterManager;
+			import soundshare.plugins.station.standardradio.managers.broadcaster.events.StandardRadioPluginBroadcasterManagerEvent;
+			import soundshare.sdk.managers.stations.events.StationsManagerEvent;
+			import soundshare.sdk.plugins.manager.IPluginManager;
+			import soundshare.sdk.plugins.manager.events.PluginManagerEvent;
+			import soundshare.sdk.plugins.view.events.PluginViewEvent;
+			
+			import spark.components.Application;
+			
+			[Bindable] public var playOrders:ArrayCollection = new ArrayCollection([
+				{title: "Default", value: 0},
+				{title: "Repeat playlist", value: 1},
+				{title: "Shuffle", value: 2}
+			]);
+			
+			[Bindable] private var context:StationContext;
+			[Bindable] private var errorText:String;
+			
+			[Bindable] private var broadcasting:Boolean = false;
+			[Bindable] private var online:Boolean = true;
+			
+			[Bindable] private var playlistCollection:ArrayCollection = new ArrayCollection();
+			
+			private var pluginManager:StandardRadioPluginBroadcasterManager;
+			
+			public function show():void
+			{
+				PopUpManager.addPopUp(this, FlexGlobals.topLevelApplication as Application, true);
+				PopUpManager.centerPopUp(this);
+				
+				currentState = "loading";
+				
+				pluginManager.addEventListener(PluginManagerEvent.READY, onReady);
+				pluginManager.addEventListener(PluginManagerEvent.ERROR, onError);
+				pluginManager.addEventListener(StationsManagerEvent.STATION_UP_DETECTED, onStationUpDetected);
+				pluginManager.addEventListener(StationsManagerEvent.STATION_DOWN_DETECTED, onStationDownDetected);
+				pluginManager.prepare();
+				
+				dispatchEvent(new PluginViewEvent(PluginViewEvent.SHOWN));
+			}
+			
+			protected function onReady(e:PluginManagerEvent):void
+			{
+				trace("------- onReady --------");
+				
+				e.currentTarget.removeEventListener(PluginManagerEvent.READY, onReady);
+				e.currentTarget.removeEventListener(PluginManagerEvent.ERROR, onError);
+				
+				pluginManager.addEventListener(PluginManagerEvent.ERROR, onProcessErrors);
+				
+				playlistCollection.source = pluginManager.playlist;
+				
+				currentState = "broadcaster";
+			}
+			
+			protected function onError(e:PluginManagerEvent):void
+			{
+				e.currentTarget.removeEventListener(PluginManagerEvent.READY, onReady);
+				e.currentTarget.removeEventListener(PluginManagerEvent.ERROR, onError);
+				
+				errorText = e.error;
+				currentState = "error";
+			}
+			
+			private function onStationUpDetected(e:StationsManagerEvent):void
+			{
+				online = true;
+			}
+			
+			private function onStationDownDetected(e:StationsManagerEvent):void
+			{
+				online = false;	
+			}
+			
+			protected function onProcessErrors(e:PluginManagerEvent):void
+			{
+				Alert.show(e.error, "Error");
+			}
+			
+			public function hide():void
+			{
+				pluginManager.removeEventListener(PluginManagerEvent.READY, onReady);
+				pluginManager.removeEventListener(PluginManagerEvent.ERROR, onError);
+				
+				pluginManager.removeEventListener(StationsManagerEvent.STATION_UP_DETECTED, onStationUpDetected);
+				pluginManager.removeEventListener(StationsManagerEvent.STATION_DOWN_DETECTED, onStationDownDetected);
+				
+				pluginManager.removeEventListener(PluginManagerEvent.ERROR, onProcessErrors);
+				pluginManager = null;
+				
+				playlistCollection.removeAll();
+				
+				PopUpManager.removePopUp(this);
+				dispatchEvent(new PluginViewEvent(PluginViewEvent.HIDDEN));
+			}
+			
+			public function set manager(value:IPluginManager):void
+			{
+				pluginManager = value as StandardRadioPluginBroadcasterManager;
+				context = pluginManager.context as StationContext;
+			}
+			
+			public function get manager():IPluginManager
+			{
+				return pluginManager;
+			}
+			
+			protected function onResize(event:ResizeEvent):void
+			{
+				PopUpManager.centerPopUp(this);
+			}
+			
+			protected function onCloseError(event:MouseEvent):void
+			{
+				hide();
+			}
+			
+			protected function onPlaySong():void
+			{
+				trace("#######[onPlaySong]:", songsGrid.selectedItem);
+				
+				if (songsGrid.selectedItem)
+					pluginManager.playSong(songsGrid.selectedIndex);
+			}
+			
+			protected function onStopSong():void
+			{
+				pluginManager.stopSong();
+			}
+			
+			protected function onPreviousSong():void
+			{
+				pluginManager.previousSong();
+			}
+			
+			protected function onNextSong():void
+			{
+				pluginManager.nextSong();
+			}
+			
+			protected function onChangePlayOrder():void
+			{
+				pluginManager.changePlayOrder(playOrderCb.selectedItem.value);
+			}
+			
+			protected function startBroadcasting():void
+			{
+				mouseChildren = false;
+				CursorManager.setBusyCursor();
+				
+				pluginManager.addEventListener(StandardRadioPluginBroadcasterManagerEvent.START_BROADCASTING_COMPLETE, onStartBroadcastingComplete);
+				pluginManager.addEventListener(StandardRadioPluginBroadcasterManagerEvent.START_BROADCASTING_ERROR, onStartBroadcastingError);
+				pluginManager.startBroadcasting();
+			}
+			
+			protected function onStartBroadcastingComplete(e:StandardRadioPluginBroadcasterManagerEvent):void
+			{
+				e.currentTarget.removeEventListener(StandardRadioPluginBroadcasterManagerEvent.START_BROADCASTING_COMPLETE, onStartBroadcastingComplete);
+				e.currentTarget.removeEventListener(StandardRadioPluginBroadcasterManagerEvent.START_BROADCASTING_ERROR, onStartBroadcastingError);
+				
+				broadcasting = true;
+				
+				mouseChildren = true;
+				CursorManager.removeBusyCursor();
+			}
+			
+			protected function onStartBroadcastingError(e:StandardRadioPluginBroadcasterManagerEvent):void
+			{
+				e.currentTarget.removeEventListener(StandardRadioPluginBroadcasterManagerEvent.START_BROADCASTING_COMPLETE, onStartBroadcastingComplete);
+				e.currentTarget.removeEventListener(StandardRadioPluginBroadcasterManagerEvent.START_BROADCASTING_ERROR, onStartBroadcastingError);
+				
+				mouseChildren = true;
+				CursorManager.removeBusyCursor();
+				
+				Alert.show("Unable to start broadcasting.");
+			}
+			
+			protected function stopBroadcasting():void
+			{
+				mouseChildren = false;
+				CursorManager.setBusyCursor();
+				
+				pluginManager.addEventListener(StandardRadioPluginBroadcasterManagerEvent.STOP_BROADCASTING_COMPLETE, onStoptBroadcastingComplete);
+				pluginManager.addEventListener(StandardRadioPluginBroadcasterManagerEvent.STOP_BROADCASTING_ERROR, onStoptBroadcastingError);
+				pluginManager.stopBroadcasting();
+			}
+			
+			protected function onStoptBroadcastingComplete(e:StandardRadioPluginBroadcasterManagerEvent):void
+			{
+				e.currentTarget.removeEventListener(StandardRadioPluginBroadcasterManagerEvent.STOP_BROADCASTING_COMPLETE, onStoptBroadcastingComplete);
+				e.currentTarget.removeEventListener(StandardRadioPluginBroadcasterManagerEvent.STOP_BROADCASTING_ERROR, onStoptBroadcastingError);
+				
+				broadcasting = true;
+				
+				mouseChildren = true;
+				CursorManager.removeBusyCursor();
+			}
+			
+			protected function onStoptBroadcastingError(e:StandardRadioPluginBroadcasterManagerEvent):void
+			{
+				e.currentTarget.removeEventListener(StandardRadioPluginBroadcasterManagerEvent.STOP_BROADCASTING_COMPLETE, onStoptBroadcastingComplete);
+				e.currentTarget.removeEventListener(StandardRadioPluginBroadcasterManagerEvent.STOP_BROADCASTING_ERROR, onStoptBroadcastingError);
+				
+				mouseChildren = true;
+				CursorManager.removeBusyCursor();
+			}
+			
+			private function close():void
+			{
+				pluginManager.destroy();
+				hide();
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:states>
+		<s:State name="init" />
+		<s:State name="loading" />
+		<s:State name="error" />
+		<s:State name="broadcaster" />
+		<s:State name="info" />
+	</s:states>
+	
+	<s:Label text="Loading..." includeIn="loading" paddingBottom="40" paddingLeft="80" paddingRight="80" paddingTop="40" />
+	
+	<s:VGroup includeIn="error" horizontalAlign="center" paddingBottom="40" paddingLeft="60" paddingRight="80" paddingTop="60">
+		<s:Label text="{errorText}" />
+		<s:Button label="Close" click="onCloseError(event)" />
+	</s:VGroup>
+	
+	<s:VGroup includeIn="broadcaster" gap="0">
+		<s:VGroup paddingBottom="15" paddingLeft="15" paddingTop="15" paddingRight="15">
+			
+			<s:Group width="100%">
+				
+				<s:HGroup>
+					<s:Button label="Start broadcast" click="startBroadcasting()" enabled="{!broadcasting}" />
+					<s:Button label="Stop broadcast" click="stopBroadcasting()" enabled="{broadcasting}" />
+					
+					<s:Button label="&lt;" width="40" enabled="{songsGrid.selectedItem &amp;&amp; broadcasting}"
+							  click="onPreviousSong()" />
+					<s:Button label="Play" enabled="{songsGrid.selectedItem &amp;&amp; broadcasting}" 
+							  click="onPlaySong()"/>
+					<s:Button label="Stop" enabled="{songsGrid.selectedItem &amp;&amp; broadcasting}" 
+							  click="onStopSong()"/>
+					<s:Button label="&gt;" width="40" enabled="{songsGrid.selectedItem &amp;&amp; broadcasting}"
+							  click="onNextSong()" />
+				</s:HGroup>
+				
+				<s:HGroup right="0" verticalAlign="middle">
+					<s:Label text="Order:" paddingLeft="20" />
+					<s:ComboBox id="playOrderCb" dataProvider="{playOrders}" labelField="title" selectedIndex="0"
+								enabled="{broadcasting}"
+								change="onChangePlayOrder()"/>
+				</s:HGroup>
+				
+			</s:Group>
+			
+			<mx:DataGrid id="songsGrid" dataProvider="{playlistCollection}" width="750" rowCount="16"
+						 doubleClickEnabled="true" 
+						 doubleClick="onPlaySong()">
+				<mx:columns>
+					<mx:DataGridColumn dataField="path" headerText="Path" />
+				</mx:columns>
+			</mx:DataGrid>
+			
+		</s:VGroup>
+		
+		<s:Group width="100%">
+			<s:Rect width="100%" height="100%">
+				<s:fill>
+					<s:SolidColor color="0x666666" />
+				</s:fill>
+			</s:Rect>
+			
+			<s:HGroup width="100%" paddingBottom="15" paddingLeft="15" paddingRight="15" paddingTop="15">
+				<s:Group width="100%">
+					<s:Button label="Close" click="close()" />
+					<components1:OnlineIndicator id="onlineIndicator" online="{online}" right="0" />
+				</s:Group>
+			</s:HGroup>	
+		</s:Group>
+		
+	</s:VGroup>
+	
+</s:Panel>

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Panel xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 title="Select playlist"
+		 width="700" height="400">
+	
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.core.FlexGlobals;
+			import mx.managers.PopUpManager;
+			
+			import soundshare.station.data.StationContext;
+			import soundshare.sdk.data.platlists.PlaylistContext;
+			
+			import spark.components.Application;
+			
+			[Bindable] private var context:StationContext;
+			[Bindable] private var playlists:ArrayCollection = new ArrayCollection();
+			
+			public function init(context:StationContext):void
+			{
+				this.context = context;
+			}
+			
+			public function show():void
+			{
+				PopUpManager.addPopUp(this, FlexGlobals.topLevelApplication as Application, true);
+				PopUpManager.centerPopUp(this);
+				
+				playlists.source = context.playlists.source;
+				playlists.refresh();
+			}
+			
+			public function hide():void
+			{
+				PopUpManager.removePopUp(this);
+			}
+
+			protected function select():void
+			{
+				dispatchEvent(new Event(Event.SELECT));
+				hide();
+			}
+			
+			public function get playlistData():PlaylistContext
+			{
+				return playlistsGrid.selectedItem as PlaylistContext;
+			}
+			
+			//**************************************************************************************************************
+			//**************************************************************************************************************
+			//**************************************************************************************************************
+			
+			private function typeLabelFunc(item:Object, column:DataGridColumn):String 
+			{
+				return item.type == 0 ? "public" : "private";
+			}
+			
+			private function totalLabelFunc(item:Object, column:DataGridColumn):String 
+			{
+				return item.total;
+			}
+			
+			private function genreLabelFunc(item:Object, column:DataGridColumn):String 
+			{
+				return String(item.genre).split(",").join(", ");
+			}
+
+		]]>
+	</fx:Script>
+	
+	<s:VGroup width="100%" height="100%" paddingBottom="15" paddingLeft="15" paddingTop="20" paddingRight="15">
+		<mx:DataGrid id="playlistsGrid" dataProvider="{playlists}" width="100%" height="100%"
+					 doubleClickEnabled="true"
+					 doubleClick="select()">
+			<mx:columns>
+				<mx:DataGridColumn dataField="name" headerText="Name"  />
+				<mx:DataGridColumn labelFunction="genreLabelFunc" headerText="Genre"  />
+				<mx:DataGridColumn labelFunction="typeLabelFunc" headerText="Type" textAlign="center" width="80"/>
+				<mx:DataGridColumn labelFunction="totalLabelFunc" headerText="Total songs" textAlign="right" paddingRight="7" width="120"/>
+			</mx:columns>
+		</mx:DataGrid>
+		
+		<s:HGroup>
+			<s:Button label="Select" click="select()"/>
+			<s:Button label="Cancel" click="hide()" />
+		</s:HGroup>
+		
+	</s:VGroup>
+	
+</s:Panel>

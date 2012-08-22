@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 implements="soundshare.sdk.plugins.view.IPluginView" 
+		 xmlns:components="soundshare.plugins.station.remoteplaylist.views.components.*"
+		 resize="onResize(event)">
+	
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.core.FlexGlobals;
+			import mx.events.ResizeEvent;
+			import mx.managers.PopUpManager;
+			
+			import soundshare.station.data.StationContext;
+			import soundshare.sdk.data.platlists.PlaylistContext;
+			import soundshare.sdk.plugins.manager.IPluginManager;
+			import soundshare.sdk.plugins.manager.events.PluginManagerEvent;
+			import soundshare.sdk.plugins.view.events.PluginViewEvent;
+			
+			import spark.components.Application;
+			
+			[Bindable] private var context:StationContext;
+			[Bindable] private var errorText:String;
+			
+			//private var pluginManager:RemotePlaylistPluginListenerManager;
+			
+			public function show():void
+			{
+				PopUpManager.addPopUp(this, FlexGlobals.topLevelApplication as Application, true);
+				PopUpManager.centerPopUp(this);
+				
+				dispatchEvent(new PluginViewEvent(PluginViewEvent.SHOWN));
+			}
+			
+			public function hide():void
+			{
+				PopUpManager.removePopUp(this);
+				dispatchEvent(new PluginViewEvent(PluginViewEvent.HIDDEN));
+			}
+			
+			public function set manager(value:IPluginManager):void
+			{
+				//pluginManager = value as RemotePlaylistPluginListenerManager;
+				//context = pluginManager.context as StationContext;
+			}
+			
+			public function get manager():IPluginManager
+			{
+				return null; //pluginManager;
+			}
+			
+			protected function onResize(event:ResizeEvent):void
+			{
+				PopUpManager.centerPopUp(this);
+			}
+			
+			protected function onCloseError(event:MouseEvent):void
+			{
+				hide();
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:states>
+		<s:State name="init" />
+		<s:State name="loading" />
+		<s:State name="error" />
+		<s:State name="player" />
+		<s:State name="info" />
+	</s:states>
+	
+	<s:Panel includeIn="loading" horizontalCenter="0" verticalCenter="0">
+		<s:Label text="Loading..." paddingBottom="40" paddingLeft="80" paddingRight="80" paddingTop="40" />
+	</s:Panel>
+	
+	<s:Panel title="Error" includeIn="error" horizontalCenter="0" verticalCenter="0">
+		<s:VGroup horizontalAlign="center" paddingBottom="40" paddingLeft="60" paddingRight="80" paddingTop="60">
+			<s:Label text="{errorText}" />
+			<s:Button label="Close" click="onCloseError(event)" />
+		</s:VGroup>
+	</s:Panel>
+	
+</s:Group>
